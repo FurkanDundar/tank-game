@@ -254,7 +254,8 @@ const players = [];
 
 app.get('/', (request, response) => {
     if (players.length < 2) {
-        response.sendFile(__dirname + '/public/index.html');
+        // response.sendFile(__dirname + '/public/index.html');
+        response.sendFile("Hello World");
     }
 })
 
