@@ -243,12 +243,14 @@ let currentMissile2State;
 
 const express = require("express");
 let app = express();
-let server = app.listen(process.env.PORT || 4000);
-let io = require('socket.io')(server, {
-    cors: {
-        origin: '*'
-    }
-});
+app.use(express.static("public"))
+const http = require("http").Server(app)
+const PORT = process.env.PORT || 4000;
+let io = require('socket.io')(http);
+
+http.listen(PORT, function () {
+    console.log("Listening...");
+})
 
 const players = [];
 
@@ -398,7 +400,6 @@ function informPlayers() {
 }
 
 
-io.listen(3000);
 
 
 
