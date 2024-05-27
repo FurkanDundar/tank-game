@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      #version 300 es
+
+      in vec4 positions;
+
+      uniform float theta;
+      uniform float centerOfTankX;
+      uniform float centerOfTankY;
+      uniform float distanceX;
+      uniform float distanceY;
+
+      void main(){
+        float tempX = positions.x + distanceX;
+        float tempY = positions.y + distanceY;
+
+        gl_Position.x = tempX - centerOfTankX;
+        gl_Position.y = tempY - centerOfTankY;
+
+        float sinValue = sin(theta);
+        float cosValue = cos(theta);
+
+        tempX = gl_Position.x * cosValue - gl_Position.y * sinValue;
+        tempY = gl_Position.x * sinValue + gl_Position.y * cosValue;
+
+        gl_Position.x = tempX + centerOfTankX;
+        gl_Position.y = tempY + centerOfTankY;
+
+        gl_Position.z = 0.0;
+        gl_Position.w = 1.0;
+      }
+    </script>
+
+    <script id="vertex-shader-missile" type="x-shader/x-vertex">
+      #version 300 es
+
+      in vec4 positions;
+
+      uniform float theta;
+      uniform float centerOfTankX;
+      uniform float centerOfTankY;
+      uniform float distanceMissileX;
+      uniform float distanceMissileY;
+      uniform float distanceX;
+      uniform float distanceY;
+
+      void main(){
+        float tempX = positions.x + distanceX;
+        float tempY = positions.y + distanceY;
+
+        gl_Position.x = tempX - centerOfTankX;
+        gl_Position.y = tempY - centerOfTankY;
+
+        float sinValue = sin(theta);
+        float cosValue = cos(theta);
+
+        tempX = gl_Position.x * cosValue - gl_Position.y * sinValue;
+        tempY = gl_Position.x * sinValue + gl_Position.y * cosValue;
+
+        gl_Position.x = tempX + centerOfTankX + distanceMissileX;
+        gl_Position.y = tempY + centerOfTankY + distanceMissileY;
+
+        gl_Position.z = 0.0;
+        gl_Position.w = 1.0;
+      }
+    </script>
+
+    <script id="vertex-shader-wall" type="x-shader/x-vertex">
+      #version 300 es
+
+      in vec4 positions;
+
+      void main(){
+
+        float tempX = positions.x;
+        float tempY = positions.y;
+
+        gl_Position.x = tempX;
+        gl_Position.y = tempY;
+
+        gl_Position.z = 0.0;
+        gl_Position.w = 1.0;
+      }
+    </script>
+
+    <script id="fragment-shader-1" type="x-shader/x-fragment">
+      #version 300 es
+      precision mediump float;
+
+      out vec4 fColor;
+
+      void main()
+      {
+          fColor = vec4(0.396, 0.263, 0.129, 1.0);
+      }
+    </script>
+
+    <script id="fragment-shader-2" type="x-shader/x-fragment">
+      #version 300 es
+      precision mediump float;
+
+      out vec4 fColor;
+
+      void main()
+      {
+          fColor = vec4(0.220, 0.145, 0.055, 1.0);
+      }
+    </script>
+
+    <script id="fragment-shader-3" type="x-shader/x-fragment">
+      #version 300 es
+      precision mediump float;
+
+      out vec4 fColor;
+
+      void main()
+      {
+          fColor = vec4(0.91, 0.73, 0.73, 1.0);
+      }
+    </script>
+  </head>
+  <body>
+    <script src="/socket.io/socket.io.js"></script>
+    <div id="container">
+      <canvas id="canvas" width="1012" height="1012"></canvas>
+    </div>
+    <script>
+      // Game related variables
+      let canvas, webgl;
+      let state;
+      let savedStateTank1;
+      let savedStateTank2;
+
+      let vertexShaderElement, vertexShader;
+      let vertexShaderElementForMissile, vertexShaderForMissile;
+      let vertexShaderElementForWall, vertexShaderForWall;
+      let fragmentShaderElement1, fragmentShader1;
+      let fragmentShaderElement2, fragmentShader2;
+      let fragmentShaderElement3, fragmentShader3;
+
+      let program1, program2;
+      let program3, program4;
+      let program5;
+
+      let theta1Location;
+      let centerOfTank1XLocation, centerOfTank1YLocation;
+      let distance1XLocation, distance1YLocation;
+      let distanceMissile1XLocation, distanceMissile1YLocation;
+
+      let theta2Location;
+      let centerOfTank2XLocation, centerOfTank2YLocation;
+      let distance2XLocation, distance2YLocation;
+      let distanceMissile2XLocation, distanceMissile2YLocation;
+    </script>
+
+    <script>
+      // Shader configuration
+      function configureShaders() {
+        configureVertexShaders();
+        configureFragmentShaders();
+      }
+
+      function configureVertexShaders() {
+        vertexShaderElement = document.getElementById("vertex-shader");
+        vertexShader = webgl.createShader(webgl.VERTEX_SHADER);
+        webgl.shaderSource(
+          vertexShader,
+          vertexShaderElement.textContent.replace(/^\s+|\s+$/g, "")
+        );
+        webgl.compileShader(vertexShader);
+
+        vertexShaderElementForMissile = document.getElementById(
+          "vertex-shader-missile"
+        );
+        vertexShaderForMissile = webgl.createShader(webgl.VERTEX_SHADER);
+        webgl.shaderSource(
+          vertexShaderForMissile,
+          vertexShaderElementForMissile.textContent.replace(/^\s+|\s+$/g, "")
+        );
+        webgl.compileShader(vertexShaderForMissile);
+
+        vertexShaderElementForWall =
+          document.getElementById("vertex-shader-wall");
+        vertexShaderForWall = webgl.createShader(webgl.VERTEX_SHADER);
+        webgl.shaderSource(
+          vertexShaderForWall,
+          vertexShaderElementForWall.textContent.replace(/^\s+|\s+$/g, "")
+        );
+        webgl.compileShader(vertexShaderForWall);
+      }
+
+      function configureFragmentShaders() {
+        fragmentShaderElement1 = document.getElementById("fragment-shader-1");
+        fragmentShader1 = webgl.createShader(webgl.FRAGMENT_SHADER);
+        webgl.shaderSource(
+          fragmentShader1,
+          fragmentShaderElement1.textContent.replace(/^\s+|\s+$/g, "")
+        );
+        webgl.compileShader(fragmentShader1);
+
+        fragmentShaderElement2 = document.getElementById("fragment-shader-2");
+        fragmentShader2 = webgl.createShader(webgl.FRAGMENT_SHADER);
+        webgl.shaderSource(
+          fragmentShader2,
+          fragmentShaderElement2.textContent.replace(/^\s+|\s+$/g, "")
+        );
+        webgl.compileShader(fragmentShader2);
+
+        fragmentShaderElement3 = document.getElementById("fragment-shader-3");
+        fragmentShader3 = webgl.createShader(webgl.FRAGMENT_SHADER);
+        webgl.shaderSource(
+          fragmentShader3,
+          fragmentShaderElement3.textContent.replace(/^\s+|\s+$/g, "")
+        );
+        webgl.compileShader(fragmentShader3);
+      }
+    </script>
+
+    <script>
+      // Drawing configuration
+      function configureTank1BodyBuffer() {
+        let bufferForBody = webgl.createBuffer();
+        webgl.bindBuffer(webgl.ARRAY_BUFFER, bufferForBody);
+        webgl.bufferData(
+          webgl.ARRAY_BUFFER,
+          state.tank1.lowerBody,
+          webgl.STATIC_DRAW
+        );
+
+        program1 = webgl.createProgram();
+        webgl.attachShader(program1, vertexShader);
+        webgl.attachShader(program1, fragmentShader1);
+        webgl.linkProgram(program1);
+        webgl.useProgram(program1);
+
+        let positionLocations = webgl.getAttribLocation(program1, "positions");
+        webgl.vertexAttribPointer(
+          positionLocations,
+          2,
+          webgl.FLOAT,
+          false,
+          0,
+          0
+        );
+        webgl.enableVertexAttribArray(positionLocations);
+      }
+
+      function configureTank1UpperBodyBuffer() {
+        let bufferForUpperBody = webgl.createBuffer();
+        webgl.bindBuffer(webgl.ARRAY_BUFFER, bufferForUpperBody);
+        webgl.bufferData(
+          webgl.ARRAY_BUFFER,
+          state.tank1.upperBody,
+          webgl.STATIC_DRAW
+        );
+
+        program2 = webgl.createProgram();
+        webgl.attachShader(program2, vertexShader);
+        webgl.attachShader(program2, fragmentShader2);
+        webgl.linkProgram(program2);
+        webgl.useProgram(program2);
+
+        let positionLocations = webgl.getAttribLocation(program2, "positions");
+        webgl.vertexAttribPointer(
+          positionLocations,
+          2,
+          webgl.FLOAT,
+          false,
+          0,
+          0
+        );
+        webgl.enableVertexAttribArray(positionLocations);
+      }
+
+      function configureTank1MissileBuffer() {
+        let bufferForMissile = webgl.createBuffer();
+        webgl.bindBuffer(webgl.ARRAY_BUFFER, bufferForMissile);
+        webgl.bufferData(
+          webgl.ARRAY_BUFFER,
+          state.tank1.missile,
+          webgl.STATIC_DRAW
+        );
+
+        program2 = webgl.createProgram();
+        webgl.attachShader(program2, vertexShaderForMissile);
+        webgl.attachShader(program2, fragmentShader2);
+        webgl.linkProgram(program2);
+        webgl.useProgram(program2);
+
+        let positionLocations = webgl.getAttribLocation(program2, "positions");
+        webgl.vertexAttribPointer(
+          positionLocations,
+          2,
+          webgl.FLOAT,
+          false,
+          0,
+          0
+        );
+        webgl.enableVertexAttribArray(positionLocations);
+      }
+
+      function configureTank2BodyBuffer() {
+        let bufferForBody = webgl.createBuffer();
+        webgl.bindBuffer(webgl.ARRAY_BUFFER, bufferForBody);
+        webgl.bufferData(
+          webgl.ARRAY_BUFFER,
+          state.tank2.lowerBody,
+          webgl.STATIC_DRAW
+        );
+
+        program3 = webgl.createProgram();
+        webgl.attachShader(program3, vertexShader);
+        webgl.attachShader(program3, fragmentShader1);
+        webgl.linkProgram(program3);
+        webgl.useProgram(program3);
+
+        let positionLocations = webgl.getAttribLocation(program3, "positions");
+        webgl.vertexAttribPointer(
+          positionLocations,
+          2,
+          webgl.FLOAT,
+          false,
+          0,
+          0
+        );
+        webgl.enableVertexAttribArray(positionLocations);
+      }
+
+      function configureTank2UpperBodyBuffer() {
+        let bufferForTurret = webgl.createBuffer();
+        webgl.bindBuffer(webgl.ARRAY_BUFFER, bufferForTurret);
+        webgl.bufferData(
+          webgl.ARRAY_BUFFER,
+          state.tank2.upperBody,
+          webgl.STATIC_DRAW
+        );
+
+        program3 = webgl.createProgram();
+        webgl.attachShader(program3, vertexShader);
+        webgl.attachShader(program3, fragmentShader2);
+        webgl.linkProgram(program3);
+        webgl.useProgram(program3);
+
+        let positionLocations = webgl.getAttribLocation(program3, "positions");
+        webgl.vertexAttribPointer(
+          positionLocations,
+          2,
+          webgl.FLOAT,
+          false,
+          0,
+          0
+        );
+        webgl.enableVertexAttribArray(positionLocations);
+      }
+
+      function configureTank2MissileBuffer() {
+        let bufferForMissile = webgl.createBuffer();
+        webgl.bindBuffer(webgl.ARRAY_BUFFER, bufferForMissile);
+        webgl.bufferData(
+          webgl.ARRAY_BUFFER,
+          state.tank2.missile,
+          webgl.STATIC_DRAW
+        );
+
+        program4 = webgl.createProgram();
+        webgl.attachShader(program4, vertexShaderForMissile);
+        webgl.attachShader(program4, fragmentShader2);
+        webgl.linkProgram(program4);
+        webgl.useProgram(program4);
+
+        let positionLocations = webgl.getAttribLocation(program4, "positions");
+        webgl.vertexAttribPointer(
+          positionLocations,
+          2,
+          webgl.FLOAT,
+          false,
+          0,
+          0
+        );
+        webgl.enableVertexAttribArray(positionLocations);
+      }
+
+      function configureWallBuffer() {
+        let bufferForWall = webgl.createBuffer();
+        webgl.bindBuffer(webgl.ARRAY_BUFFER, bufferForWall);
+        webgl.bufferData(
+          webgl.ARRAY_BUFFER,
+          state.walls.wall,
+          webgl.STATIC_DRAW
+        );
+
+        program5 = webgl.createProgram();
+        webgl.attachShader(program5, vertexShaderForWall);
+        webgl.attachShader(program5, fragmentShader3);
+        webgl.linkProgram(program5);
+        webgl.useProgram(program5);
+
+        let positionLocations = webgl.getAttribLocation(program5, "positions");
+        webgl.vertexAttribPointer(
+          positionLocations,
+          2,
+          webgl.FLOAT,
+          false,
+          0,
+          0
+        );
+        webgl.enableVertexAttribArray(positionLocations);
+      }
+    </script>
+
+    <script>
+      // Drawing
+
+      function drawTank1Body() {
+        theta1Location = webgl.getUniformLocation(program1, "theta");
+        webgl.uniform1f(theta1Location, state.tank1.theta);
+
+        centerOfTank1XLocation = webgl.getUniformLocation(
+          program1,
+          "centerOfTankX"
+        );
+        webgl.uniform1f(centerOfTank1XLocation, state.tank1.centerX);
+        centerOfTank1YLocation = webgl.getUniformLocation(
+          program1,
+          "centerOfTankY"
+        );
+        webgl.uniform1f(centerOfTank1YLocation, state.tank1.centerY);
+
+        distance1XLocation = webgl.getUniformLocation(program1, "distanceX");
+        webgl.uniform1f(distance1XLocation, state.tank1.distanceX);
+        distance1YLocation = webgl.getUniformLocation(program1, "distanceY");
+        webgl.uniform1f(distance1YLocation, state.tank1.distanceY);
+
+        webgl.drawArrays(webgl.TRIANGLES, 0, 6);
+      }
+
+      function drawTank1UpperBody() {
+        theta1Location = webgl.getUniformLocation(program2, "theta");
+        webgl.uniform1f(theta1Location, state.tank1.theta);
+
+        centerOfTank1XLocation = webgl.getUniformLocation(
+          program2,
+          "centerOfTankX"
+        );
+        webgl.uniform1f(centerOfTank1XLocation, state.tank1.centerX);
+        centerOfTank1YLocation = webgl.getUniformLocation(
+          program2,
+          "centerOfTankY"
+        );
+        webgl.uniform1f(centerOfTank1YLocation, state.tank1.centerY);
+
+        distance1XLocation = webgl.getUniformLocation(program2, "distanceX");
+        webgl.uniform1f(distance1XLocation, state.tank1.distanceX);
+        distance1YLocation = webgl.getUniformLocation(program2, "distanceY");
+        webgl.uniform1f(distance1YLocation, state.tank1.distanceY);
+
+        webgl.drawArrays(webgl.TRIANGLES, 0, 12);
+      }
+
+      function drawTank1Missile() {
+        if (savedStateTank1) {
+          savedStateTank1.tank1.distanceMissileX +=
+            savedStateTank1.tank1.directionX;
+          savedStateTank1.tank1.distanceMissileY +=
+            savedStateTank1.tank1.directionY;
+
+          thetaLocation = webgl.getUniformLocation(program2, "theta");
+          webgl.uniform1f(thetaLocation, savedStateTank1.tank1.theta);
+          centerOfTankXLocation = webgl.getUniformLocation(
+            program2,
+            "centerOfTankX"
+          );
+          webgl.uniform1f(centerOfTankXLocation, savedStateTank1.tank1.centerX);
+          centerOfTankYLocation = webgl.getUniformLocation(
+            program2,
+            "centerOfTankY"
+          );
+          webgl.uniform1f(centerOfTankYLocation, savedStateTank1.tank1.centerY);
+          distanceXLocation = webgl.getUniformLocation(program2, "distanceX");
+          webgl.uniform1f(distanceXLocation, savedStateTank1.tank1.distanceX);
+          distanceYLocation = webgl.getUniformLocation(program2, "distanceY");
+          webgl.uniform1f(distanceYLocation, savedStateTank1.tank1.distanceY);
+
+          distanceMissileXLocation = webgl.getUniformLocation(
+            program2,
+            "distanceMissileX"
+          );
+          webgl.uniform1f(
+            distanceMissileXLocation,
+            savedStateTank1.tank1.distanceMissileX
+          );
+          distanceMissileYLocation = webgl.getUniformLocation(
+            program2,
+            "distanceMissileY"
+          );
+          webgl.uniform1f(
+            distanceMissileYLocation,
+            savedStateTank1.tank1.distanceMissileY
+          );
+          socket.emit("currentMissilePosition", savedStateTank1);
+        } else {
+          thetaLocation = webgl.getUniformLocation(program2, "theta");
+          webgl.uniform1f(thetaLocation, state.tank1.theta);
+          centerOfTankXLocation = webgl.getUniformLocation(
+            program2,
+            "centerOfTankX"
+          );
+          webgl.uniform1f(centerOfTankXLocation, state.tank1.centerX);
+          centerOfTankYLocation = webgl.getUniformLocation(
+            program2,
+            "centerOfTankY"
+          );
+          webgl.uniform1f(centerOfTankYLocation, state.tank1.centerY);
+          distanceXLocation = webgl.getUniformLocation(program2, "distanceX");
+          webgl.uniform1f(distanceXLocation, state.tank1.distanceX);
+          distanceYLocation = webgl.getUniformLocation(program2, "distanceY");
+          webgl.uniform1f(distanceYLocation, state.tank1.distanceY);
+
+          distanceMissileXLocation = webgl.getUniformLocation(
+            program2,
+            "distanceMissileX"
+          );
+          webgl.uniform1f(
+            distanceMissileXLocation,
+            state.tank1.distanceMissileX
+          );
+          distanceMissileYLocation = webgl.getUniformLocation(
+            program2,
+            "distanceMissileY"
+          );
+          webgl.uniform1f(
+            distanceMissileYLocation,
+            state.tank1.distanceMissileY
+          );
+        }
+        webgl.drawArrays(webgl.TRIANGLES, 0, 3);
+      }
+
+      function drawTank2Body() {
+        theta2Location = webgl.getUniformLocation(program3, "theta");
+        webgl.uniform1f(theta2Location, state.tank2.theta);
+        centerOfTank2XLocation = webgl.getUniformLocation(
+          program3,
+          "centerOfTankX"
+        );
+        webgl.uniform1f(centerOfTank2XLocation, state.tank2.centerX);
+
+        centerOfTank2YLocation = webgl.getUniformLocation(
+          program3,
+          "centerOfTankY"
+        );
+        webgl.uniform1f(centerOfTank2YLocation, state.tank2.centerY);
+
+        distance2XLocation = webgl.getUniformLocation(program3, "distanceX");
+        webgl.uniform1f(distance2XLocation, state.tank2.distanceX);
+        distance2YLocation = webgl.getUniformLocation(program3, "distanceY");
+        webgl.uniform1f(distance2YLocation, state.tank2.distanceY);
+
+        webgl.drawArrays(webgl.TRIANGLES, 0, 6);
+      }
+
+      function drawTank2UpperBody() {
+        theta2Location = webgl.getUniformLocation(program3, "theta");
+        webgl.uniform1f(theta2Location, state.tank2.theta);
+
+        centerOfTank2XLocation = webgl.getUniformLocation(
+          program3,
+          "centerOfTankX"
+        );
+        webgl.uniform1f(centerOfTank2XLocation, state.tank2.centerX);
+        centerOfTank2YLocation = webgl.getUniformLocation(
+          program3,
+          "centerOfTankY"
+        );
+        webgl.uniform1f(centerOfTank2YLocation, state.tank2.centerY);
+
+        distance2XLocation = webgl.getUniformLocation(program3, "distanceX");
+        webgl.uniform1f(distance2XLocation, state.tank2.distanceX);
+        distance2YLocation = webgl.getUniformLocation(program3, "distanceY");
+        webgl.uniform1f(distance2YLocation, state.tank2.distanceY);
+
+        webgl.drawArrays(webgl.TRIANGLES, 0, 12);
+      }
+
+      function drawTank2Missile() {
+        if (savedStateTank2) {
+          savedStateTank2.tank2.distanceMissileX +=
+            savedStateTank2.tank2.directionX;
+          savedStateTank2.tank2.distanceMissileY +=
+            savedStateTank2.tank2.directionY;
+          thetaLocation = webgl.getUniformLocation(program4, "theta");
+          webgl.uniform1f(thetaLocation, savedStateTank2.tank2.theta);
+          centerOfTankXLocation = webgl.getUniformLocation(
+            program4,
+            "centerOfTankX"
+          );
+          webgl.uniform1f(centerOfTankXLocation, savedStateTank2.tank2.centerX);
+          centerOfTankYLocation = webgl.getUniformLocation(
+            program4,
+            "centerOfTankY"
+          );
+          webgl.uniform1f(centerOfTankYLocation, savedStateTank2.tank2.centerY);
+          distanceXLocation = webgl.getUniformLocation(program4, "distanceX");
+          webgl.uniform1f(distanceXLocation, savedStateTank2.tank2.distanceX);
+          distanceYLocation = webgl.getUniformLocation(program4, "distanceY");
+          webgl.uniform1f(distanceYLocation, savedStateTank2.tank2.distanceY);
+
+          distanceMissileXLocation = webgl.getUniformLocation(
+            program4,
+            "distanceMissileX"
+          );
+          webgl.uniform1f(
+            distanceMissileXLocation,
+            savedStateTank2.tank2.distanceMissileX
+          );
+          distanceMissileYLocation = webgl.getUniformLocation(
+            program4,
+            "distanceMissileY"
+          );
+          webgl.uniform1f(
+            distanceMissileYLocation,
+            savedStateTank2.tank2.distanceMissileY
+          );
+          socket.emit("currentMissilePosition", savedStateTank2);
+        } else {
+          thetaLocation = webgl.getUniformLocation(program4, "theta");
+          webgl.uniform1f(thetaLocation, state.tank2.theta);
+          centerOfTankXLocation = webgl.getUniformLocation(
+            program4,
+            "centerOfTankX"
+          );
+          webgl.uniform1f(centerOfTankXLocation, state.tank2.centerX);
+          centerOfTankYLocation = webgl.getUniformLocation(
+            program4,
+            "centerOfTankY"
+          );
+          webgl.uniform1f(centerOfTankYLocation, state.tank2.centerY);
+          distanceXLocation = webgl.getUniformLocation(program4, "distanceX");
+          webgl.uniform1f(distanceXLocation, state.tank2.distanceX);
+          distanceYLocation = webgl.getUniformLocation(program4, "distanceY");
+          webgl.uniform1f(distanceYLocation, state.tank2.distanceY);
+
+          distanceMissileXLocation = webgl.getUniformLocation(
+            program4,
+            "distanceMissileX"
+          );
+          webgl.uniform1f(
+            distanceMissileXLocation,
+            state.tank2.distanceMissileX
+          );
+          distanceMissileYLocation = webgl.getUniformLocation(
+            program4,
+            "distanceMissileY"
+          );
+          webgl.uniform1f(
+            distanceMissileYLocation,
+            state.tank2.distanceMissileY
+          );
+        }
+        webgl.drawArrays(webgl.TRIANGLES, 0, 3);
+      }
+
+      function drawWall() {
+        webgl.drawArrays(webgl.TRIANGLES, 0, 24);
+      }
+    </script>
+    <script>
+      const socket = io("http://192.168.1.8:3000");
+      socket.on("initializeGame", (data) => {
+        state = data;
+        initializeGame();
+      });
+      socket.on("stateChanged", (newState) => {
+        state = newState;
+      });
+      socket.on("fireTank1", (state) => {
+        savedStateTank1 = state;
+      });
+      socket.on("fireTank2", (state) => {
+        savedStateTank2 = state;
+      });
+      socket.on("removeTank1SavedState", (gameState) => {
+        state = gameState;
+        savedStateTank1 = null;
+      });
+      socket.on("removeTank2SavedState", (gameState) => {
+        state = gameState;
+        savedStateTank2 = null;
+      });
+      socket.on("reloadTank1", (gameState) => {
+        state = gameState;
+        console.log("reload tank 1");
+      });
+      socket.on("reloadTank2", (gameState) => {
+        state = gameState;
+      });
+
+      function initializeGame() {
+        canvas = document.getElementById("canvas");
+        webgl = canvas.getContext("webgl2");
+        webgl.viewport(0, 0, canvas.clientWidth, canvas.clientHeight);
+        webgl.clearColor(0.1, 0.5, 0.7, 0.9);
+        configureShaders();
+        addListeners();
+        render();
+      }
+
+      function addListeners() {
+        document.addEventListener("keyup", (event) => {
+          if (event.code === "KeyA") {
+            socket.emit("rotateLeft");
+          }
+          if (event.code === "KeyD") {
+            socket.emit("rotateRight");
+          }
+          if (event.code === "KeyW") {
+            socket.emit("moveTank");
+          }
+          if (event.code === "KeyF") {
+            socket.emit("fireRequest");
+          }
+          if (event.code === "KeyR") {
+            socket.emit("reloadRequest");
+          }
+        });
+      }
+
+      function drawTank1() {
+        if (!state.tank1.destroyed) {
+          configureTank1BodyBuffer();
+          drawTank1Body();
+          configureTank1UpperBodyBuffer();
+          drawTank1UpperBody();
+          if (!state.tank1.missileDisappear) {
+            configureTank1MissileBuffer();
+            drawTank1Missile();
+          }
+        }
+      }
+
+      function drawTank2() {
+        if (!state.tank2.destroyed) {
+          configureTank2BodyBuffer();
+          drawTank2Body();
+          configureTank2UpperBodyBuffer();
+          drawTank2UpperBody();
+          if (!state.tank2.missileDisappear) {
+            configureTank2MissileBuffer();
+            drawTank2Missile();
+          }
+        }
+      }
+
+      function drawWalls() {
+        configureWallBuffer();
+        drawWall();
+      }
+
+      function render() {
+        webgl.clear(webgl.COLOR_BUFFER_BIT);
+        drawTank1();
+        drawTank2();
+        drawWalls();
+        requestAnimationFrame(render);
+      }
+    </script>
+  </body>
+</html>
+
+<!--
+   
+    <script src="/socket.io/socket.io.js"></script>
+   
+    <script>
+   
+
+
+     
+
+      // mermiler eklenecek
+    </script>
+    <script>
+     
+     
+
+      function drawWall() {
+        webgl.drawArrays(webgl.TRIANGLES, 0, 24);
+      }
+
+      function drawWalls() {
+        configureWallBuffer();
+        drawWall();
+    
+   
+      // mermi eklenecek
+    </script>
+    <script>
+     
+      let tank1DirectionX;
+      let tank1DirectionY;
+
+      let theta2 = 0.0;
+      let centerOfTank2X = 0.0;
+      let centerOfTank2Y = 0.75;
+      let tank2DistanceX = 0.0;
+      let tank2DistanceY = 0.0;
+      let tank2DefaultDirectionX = 0.0;
+      let tank2DefaultDirectionY = -0.02;
+      let tank2DirectionX;
+      let tank2DirectionY;
+
+      let moveTank1 = false;
+      let moveTank2 = false;
+    </script>
+    <script>
+      
+
+     
+    
+   
+    </script>
+    <script>
+      function calculateNewDirection(degree, x, y) {
+        let sinValue = Math.sin(degree);
+        let cosValue = Math.cos(degree);
+
+        let directionx = x * cosValue - y * sinValue;
+        let directiony = x * sinValue + y * cosValue;
+
+        let result = { directionx, directiony };
+
+        return result;
+      }
+    </script>
+    <script>
+      document.addEventListener("keydown", (event) => {
+        if (event.code === "KeyW") {
+          socket.emit("moveTank");
+        }
+        if (event.code === "KeyA") {
+          socket.emit("rotateLeft");
+        }
+        if (event.code === "KeyD") {
+          socket.emit("rotateRight");
+        }
+      });
+    </script>
+    <script>
+      
+      socket.on("update", (data) => {
+        if (data === "1") {
+          moveTank1 = true;
+          console.log("moveTank1");
+        } else if (data === "2") {
+          moveTank2 = true;
+          console.log("moveTank2");
+        }
+      });
+
+      socket.on("rotateLeftPermission", (data) => {
+        if (data === "1") {
+          theta1 += 0.04;
+        } else if (data === "2") {
+          theta2 -= 0.04;
+        }
+      });
+
+      socket.on("rotateRightPermission", (data) => {
+        if (data === "1") {
+          theta1 -= 0.04;
+        } else if (data === "2") {
+          theta2 += 0.04;
+        }
+      });
+
+      function render() {
+        webgl.clear(webgl.COLOR_BUFFER_BIT);
+        let newDirection = calculateNewDirection(
+          theta1,
+          tank1DefaultDirectionX,
+          tank1DefaultDirectionY
+        );
+        let newDirection2 = calculateNewDirection(
+          theta2,
+          tank2DefaultDirectionX,
+          tank2DefaultDirectionY
+        );
+        tank1DirectionX = newDirection.directionx;
+        tank1DirectionY = newDirection.directiony;
+        tank2DirectionX = newDirection2.directionx;
+        tank2DirectionY = newDirection2.directiony;
+        if (moveTank1 === true) {
+          tank1DistanceX += tank1DirectionX;
+          tank1DistanceY += tank1DirectionY;
+          centerOfTank1X += tank1DirectionX;
+          centerOfTank1Y += tank1DirectionY;
+          moveTank1 = false;
+        }
+        if (moveTank2 === true) {
+          tank2DistanceX += tank2DirectionX;
+          tank2DistanceY += tank2DirectionY;
+          centerOfTank2X += tank2DirectionX;
+          centerOfTank2Y += tank2DirectionY;
+          moveTank2 = false;
+        }
+
+        drawTank1();
+        drawTank2();
+        drawWalls();
+        requestAnimationFrame(() => {
+          render();
+        });
+      }
+
+      drawCanvas();
+    </script>
+  </body>
+</html> -->
