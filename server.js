@@ -195,6 +195,50 @@ let wallSegments = [
     [{ x: 0.4, y: -0.28 }, { x: 0.4, y: -0.3 }]
 ];
 
+const startState = {
+    tank1: {
+        theta: 0.0,
+        centerX: 0.0,
+        centerY: -0.75,
+        distanceX: 0.0,
+        distanceY: 0.0,
+        distanceMissileX: 0.0,
+        distanceMissileY: 0.0,
+        defaultDirectionX: 0.0,
+        defaultDirectionY: 0.02,
+        directionX: 0.00,
+        directionY: 0.02,
+        lowerBody: tank1LowerBody,
+        upperBody: tank1UpperBody,
+        missile: tank1Missile,
+        fireReady: true,
+        missileDisappear: false,
+        destroyed: false
+    },
+    walls: {
+        wall: wall,
+    },
+    tank2: {
+        theta: 0.0,
+        centerX: 0.0,
+        centerY: 0.75,
+        distanceX: 0.0,
+        distanceY: 0.0,
+        distanceMissileX: 0.0,
+        distanceMissileY: 0.0,
+        defaultDirectionX: 0.0,
+        defaultDirectionY: -0.02,
+        directionX: 0.00,
+        directionY: -0.02,
+        lowerBody: tank2LowerBody,
+        upperBody: tank2UpperBody,
+        missile: tank2Missile,
+        fireReady: true,
+        missileDisappear: false,
+        destroyed: false
+    }
+}
+
 const gameState = {
     tank1: {
         theta: 0.0,
