@@ -670,7 +670,7 @@
       }
     </script>
     <script>
-      const socket = io();
+      const socket = io("https://tank-game-6c9e3cdfdcf8.herokuapp.com/");
       socket.on("initializeGame", (data) => {
         state = data;
         initializeGame();
